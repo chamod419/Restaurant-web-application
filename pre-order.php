@@ -1,0 +1,206 @@
+<?php
+ 
+include 'components/connect.php'; 
+
+session_start();
+
+if(isset($_SESSION['user_id'])){
+   $user_id = $_SESSION['user_id'];
+}else{
+   $user_id = '';
+   header('location:home.php');
+}
+
+if(isset($_POST['submit'])){
+
+   $name = $_POST['name'];
+   $name = filter_var($name, FILTER_SANITIZE_STRING);
+   $email = $_POST['email'];
+   $email = filter_var($email, FILTER_SANITIZE_STRING);
+   $number = $_POST['number'];
+   $number = filter_var($number, FILTER_SANITIZE_STRING);
+   $address = $_POST['address'];
+   $address = filter_var($address, FILTER_SANITIZE_STRING);
+   $total_products = $_POST['total_products'];  
+   $total_products = filter_var($total_products, FILTER_SANITIZE_STRING);
+   $total_price = $_POST['total_price'];
+   $total_price = filter_var($total_price, FILTER_SANITIZE_STRING);
+   $method = $_POST['method'];
+   $method = filter_var($method, FILTER_SANITIZE_STRING);
+
+   $check_cart = $conn->prepare("SELECT * FROM `cart` WHERE user_id = ?");
+   $check_cart->execute([$user_id]);
+
+   if($check_cart->rowCount() > 0){
+
+      if($address == ''){
+         $message[] = 'please add your address!';
+      }else{
+
+         $insert_order = $conn->prepare("INSERT INTO `orders`(user_id, name, number, email, method, address, total_products, total_price) VALUES(?,?,?,?,?,?,?,?)");
+         $insert_order->execute([$user_id, $name, $number, $email, $method, $address, $total_products, $total_price]);
+
+         $delete_cart = $conn->prepare("DELETE FROM `cart` WHERE user_id = ?");  
+         $delete_cart->execute([$user_id]);
+
+         $message[] = 'pre-order placed successfully!';
+      
+      }
+      
+   }else{
+      $message[] = 'your cart is empty';
+   }
+
+}
+
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Pre-Order</title>
+
+ <!-- font awesome cdn link -->
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+
+ <!--coustom css file link -->
+ <link rel="stylesheet" href="css/style.css">
+
+</head>
+<body>
+
+<!-- header section starts -->
+<?php include 'components/user_header.php'; ?>
+<!-- header section ends -->
+
+<div class="heading">
+   <h3>your pre-oders</h3>
+   <p>Pre-Oder / <a href="home.php">Home</a></p>
+</div>
+
+<section class="checkout">
+
+   <h1 class="tittle">pre-order checkout</h1>
+
+<form action="" method="post">
+
+   <div class="cart-items">
+      <h3>cart items</h3>
+      <?php
+         $grand_total = 0;
+         $cart_items = [];  
+         $select_cart = $conn->prepare("SELECT * FROM `cart` WHERE user_id = ?");
+         $select_cart->execute([$user_id]);
+         if($select_cart->rowCount() > 0){
+            while($fetch_cart = $select_cart->fetch(PDO::FETCH_ASSOC)){
+               $cart_items[] = $fetch_cart['name'].' ('.$fetch_cart['price'].' x '. $fetch_cart['quantity'].') - ';
+               $total_products = implode($cart_items);
+               $grand_total += ($fetch_cart['price'] * $fetch_cart['quantity']);
+      ?>
+      <p><span class="name"><?= $fetch_cart['name']; ?></span><span class="price">Rs.<?= $fetch_cart['price']; ?> x <?= $fetch_cart['quantity']; ?></span></p>
+      <?php
+            }
+         }else{
+            echo '<p class="empty">your cart is empty!</p>';
+         }
+      ?>
+      <p class="grand-total"><span class="name">grand total :</span><span class="price">Rs.<?= $grand_total; ?></span></p>
+      <a href="cart.php" class="btn">view cart</a>
+   </div>
+
+   <input type="hidden" name="total_products" value="<?= isset($total_products) ? $total_products : ''; ?>">  
+   <input type="hidden" name="total_price" value="<?= $grand_total; ?>">
+   <input type="hidden" name="name" value="<?= isset($fetch_profile['name']) ? $fetch_profile['name'] : ''; ?>">  
+   <input type="hidden" name="number" value="<?= isset($fetch_profile['number']) ? $fetch_profile['number'] : ''; ?>">
+   <input type="hidden" name="email" value="<?= isset($fetch_profile['email']) ? $fetch_profile['email'] : ''; ?>">
+   <input type="hidden" name="address" value="<?= isset($fetch_profile['address']) ? $fetch_profile['address'] : ''; ?>">
+
+   <div class="user-info">
+      <h3>your info</h3>
+      <p><i class="fas fa-user"></i><span><?= isset($fetch_profile['name']) ? $fetch_profile['name'] : 'Guest'; ?></span></p>
+      <p><i class="fas fa-phone"></i><span><?= isset($fetch_profile['number']) ? $fetch_profile['number'] : 'N/A'; ?></span></p>
+      <p><i class="fas fa-envelope"></i><span><?= isset($fetch_profile['email']) ? $fetch_profile['email'] : 'N/A'; ?></span></p>
+      <a href="update_profile.php" class="btn">update info</a>
+      <h3> address</h3>
+      <p><i class="fas fa-map-marker-alt"></i><span><?= isset($fetch_profile['address']) && $fetch_profile['address'] != '' ? $fetch_profile['address'] : 'please enter your address'; ?></span></p>
+      <a href="update_address.php" class="btn">update address</a>
+      <select name="method" class="box" required>
+         <option value="" disabled selected>select payment method --</option>
+         <option value="cash on arrival">cash on arrival</option>
+         <option value="credit card">credit card</option>
+         <option value="paytm">paytm</option>
+         <option value="paypal">paypal</option>
+      </select>
+      <input type="submit" value="place order" class="btn <?= isset($fetch_profile['address']) && $fetch_profile['address'] != '' ? '' : 'disabled'; ?>" style="width:100%; background:var(--red); color:var(--white);" name="submit">
+   </div>
+
+</form>
+   
+</section>
+
+<!-- pre-oder section starts  -->
+
+<section class="pre-oder">
+   <h1 class="tittle">pre-oder summary</h1>
+
+<div class="box-container">
+
+   <?php
+      $select_orders = $conn->prepare("SELECT * FROm `orders` WHERE user_id = ?");
+      $select_orders->execute([$user_id]);
+      if($select_orders->rowCount() > 0){
+         while($fetch_orders = $select_orders->fetch(PDO::FETCH_ASSOC)){
+   ?>
+
+   <div class="box">
+      <p> placed on : <span><?= $fetch_orders['placed_on']; ?></span> </p>
+      <p> name : <span><?= $fetch_orders['name']; ?></span> </p>
+      <p> number : <span><?= $fetch_orders['number']; ?></span> </p>
+      <p> email : <span><?= $fetch_orders['email']; ?></span> </p>
+      <p> address : <span><?= $fetch_orders['address']; ?></span> </p>
+      <p> payment method : <span><?= $fetch_orders['method']; ?></span> </p>
+      <p> your pre-oders : <span><?= $fetch_orders['total_products']; ?></span> </p>
+      <p> total price : <span><?= $fetch_orders['total_price']; ?></span> </p>
+      <p> payment status : <span style="color:<?php if($fetch_orders['payment_status'] == 'pending'){echo 'red'; }else{echo 'green'; } ?>"><?= $fetch_orders['payment_status']; ?></span> </p>
+   </div>
+
+   <?php
+      }
+   }else{
+      echo '<p class="empty">no pre-orders placed yet!</p>';
+   }
+   ?>
+
+</div>
+
+</section>
+
+<!-- pre-oder section ends  -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- footer section starts -->
+<?php include 'components/footer.php' ?>
+<!-- footer section ends -->
+
+<!--custom js file link -->
+<script src="js/script.js"></script>
+
+</body>
+</html>
